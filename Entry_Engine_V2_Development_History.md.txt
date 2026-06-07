@@ -1,0 +1,65 @@
+# Entry Engine Integrated EA - V2.3 Development Documentation
+
+**Version:** 7.03 (With-Trend, OB Zone Entry, BOC Monitoring + Historical Scan)  
+**Date:** Current Update  
+**Project:** A specialized trade execution EA designed to work with the "MS Engine Integrated V2" indicator.
+
+## 1. High-Level Overview
+
+This MetaTrader 5 Expert Advisor (EA) is a specialized "Execution Engine" for the V2 system. Its purpose is to execute **with-trend** trades with extreme precision. It listens for setups activated by the MS Engine V2 and validates entries based on a sophisticated pullback sequence known as **BOC (Break of Candle) monitoring** and strict entry validation within a designated **Order Block (OB) zone**.
+
+This version includes critical bug fixes and a major safety enhancement to prevent trading on stale setups.
+
+## 2. V2 Strategic Philosophy: The With-Trend Pullback
+
+The V2 strategy is based on entering in the direction of the established trend after a confirmed pullback to a high-probability zone.
+
+1.  **Receive With-Trend Setup:** The EA receives a BUY setup after a Bullish BOS/CHoCH, or a SELL setup after a Bearish BOS/CHoCH from the MS Engine. This includes the OB coordinates and the setup's creation time.
+2.  **NEW (v7.03): Historical Validation:** The EA's *first action* is to perform a one-time "Historical Validation Scan." It checks every candle from the setup's creation time to the present to ensure no invalidation rules were broken while the EA was inactive. If the history is not clean, the setup is immediately discarded.
+3.  **Wait for Pullback (BOC):** If the history is clean, the EA waits for the price to show signs of pulling back, confirmed by a **Break of Candle (BOC)**.
+4.  **Monitor the Pullback (Corrected Logic):** After a BOC, the EA enters a strict monitoring phase. It prioritizes looking for a valid entry candle. Only if the current candle is *not* a valid entry signal will it check for invalidating high/low breaks.
+5.  **Validate Entry in Zone (Corrected Fib Test):** The EA searches for a valid entry candle that meets all rules, including the corrected, stricter **38.2% Fibonacci test**.
+6.  **Execute with Pure R:R:** If found, the EA executes the trade with a Take Profit based purely on the `RRRatio`.
+
+## 3. Development History (Recent Fixes)
+
+*   **v7.01 Fix:** Corrected the Post-BOC invalidation logic. The EA now correctly prioritizes checking for a valid entry signal *before* checking for an invalidating break of the previous candle's high/low. This prevents a valid entry from incorrectly invalidating itself.
+*   **v7.02 Fix:** Corrected the Fibonacci test from a permissive `0.618` to the correct, stricter `0.382` value, ensuring only high-probability candle patterns are accepted.
+*   **v7.03 Feature:** Added the **Historical Validation Scan**. On receiving a new setup, the EA now scans the bar history since the setup's confirmation time to ensure no rules were broken before live monitoring begins. This prevents taking trades on stale setups after loading the EA onto a chart.
+
+## 4. Detailed Breakdown of V2.3 Logic
+
+### State Management & The Logic Flow (On Each New Bar)
+1.  **Setup Reception:** Detects a new `SetupID` from the MS Engine.
+2.  **Historical Scan (`IsSetupHistoricallyValid`):** Immediately calls the new validation function. This function loops from the setup confirmation bar to the present, checking for any past invalidations (OB zone closes, unauthorized post-BOC breaks). If any are found, the setup is flagged as `setupInvalidatedByLogic` and ignored.
+3.  **Live Monitoring:** If the scan passes, the EA proceeds with its live, bar-by-bar analysis.
+    *   **Hard Invalidation:** Checks if the last candle closed outside the OB zone.
+    *   **BOC Detection:** Checks for the start of the pullback.
+    *   **The Corrected Checklist (Post-BOC):**
+        a. **First:** Check if the candle is a perfect entry signal (`FindSignalCandleInOB`). If yes, execute trade and stop.
+        b. **Second:** If it's *not* a perfect signal, *then* check if it broke the previous high/low in an unauthorized way. If yes, invalidate the setup.
+
+### Entry Candle Validation (`FindSignalCandleInOB` function)
+A candle is only valid if it meets ALL criteria:
+
+**For a Bullish (BUY) Setup:**
+1.  **Type:** Must be a bullish candle (`close > open`).
+2.  **Position:** The candle's `high`, `open`, and `close` must ALL be within the OB rectangle.
+3.  **Wick Rule:** The `low` can wick below `obLow`, but the `high` **cannot** wick above `obHigh`.
+4.  **Fib Test (Corrected):** The `open` and `close` must be in the **TOP 38.2%** of the candle's range.
+
+(Logic is inverted for a Bearish SELL setup).
+
+## 5. Preserved V1 Features (Unchanged)
+
+To ensure robustness, the following core systems from V1 have been preserved **exactly**:
+
+*   **Lot Size Calculation (`CalculateAndValidateLotSize`)**
+*   **Trading Session Filter (`IsValidTradingSession` and helpers)**
+*   **Trade Management (`ManageTrailingStop`)**
+*   **Execution Logic (Pending order with market fallback)**
+*   **Engulfing Stop Loss**
+
+## 6. Conclusion
+
+The Entry Engine EA V2.3 represents a mature and significantly safer version of the with-trend strategy. The addition of the Historical Validation Scan closes a critical safety loophole, while the corrected logic for post-BOC monitoring and the Fibonacci test ensures the EA operates with the precision and discipline intended by the strategy.
